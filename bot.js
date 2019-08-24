@@ -170,7 +170,12 @@ client.on('message', async message => {
         }
         return;
     }
-
+    if (message.content === globalPrefix + 'help') {
+        message.channel.send('`!addModeratorRole <@Role> ` Adds a role to the moderator list, this role will bypass the cooldowns, and can edit the cooldowns.\n'
+            + '`!removeModeratorRoles` Removes all moderator role.\n'
+            + '`!setSlowMode <time> <@Role> <#Channel>` Adds the slowmode, time should be in milliseconds.\n'
+            + '`!clearMember <@User` Removes all cooldowns from a person.\n');
+    }
     if (channelList.includes(message.channel.id)) {
         let moderatorRoles;
         if (await keyv.get('moderatorRoles') == null) {
@@ -216,7 +221,9 @@ client.on('message', async message => {
                 } else {
                     message.delete();
                     let time = Math.floor((cooldownList[k][1] - new Date().getTime()) / 60000);
-                    message.reply('The next time you can post is in ' + Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')
+                    message.reply('The next time you can post is in '+((time==0)?(Math.floor((cooldownList[k][1] - new Date().getTime()) / 1000)+1)+' seconds':  Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
+                        msg.delete(60000)
+                    });
                 }
             }
         }
