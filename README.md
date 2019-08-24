@@ -14,6 +14,7 @@ This is a small bot that allows you to setup slowmodes longer than the discord c
    npm install --save @keyv/postgres
    npm install --save @keyv/mysql```
 3. Download [the bot](./bot.js), or clone the whole git `git clone https://github.com/Dark-Xiphles/discordslowmodebot`
+4. Make/change the [params.json](./params.json) file, change the token, connectionURL and prefix if wanted.
 4. Run the bot `node bot.js`
 5. Set up all cooldowns/administrators
 
