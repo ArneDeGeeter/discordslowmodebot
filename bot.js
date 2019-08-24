@@ -201,6 +201,19 @@ client.on('message', async message => {
             }
         } else {
             cooldownList = await keyv.get(message.member.id);
+            if (cooldownList.length !== channelList.length) {
+                for (var k in channelList) {
+                    let contains=false;
+                    for(var i in cooldownList)
+                    if (channelList[k]===cooldownList[i][0]) {
+                        contains=true;
+                    }
+                    if(!contains){
+                        cooldownList.push([channelList[k],0]);
+                    }
+                }
+            }
+            await keyv.set(message.member.id,cooldownList);
         }
         for (var k in cooldownList) {
 
@@ -221,7 +234,7 @@ client.on('message', async message => {
                 } else {
                     message.delete();
                     let time = Math.floor((cooldownList[k][1] - new Date().getTime()) / 60000);
-                    message.reply('The next time you can post is in '+((time==0)?(Math.floor((cooldownList[k][1] - new Date().getTime()) / 1000)+1)+' seconds':  Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
+                    message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((cooldownList[k][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
                         msg.delete(60000)
                     });
                 }
