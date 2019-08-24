@@ -68,7 +68,8 @@ client.on('message', async message => {
         if (message.member.hasPermission('ADMINISTRATOR') || hasModeratorRole) {
             const role = message.mentions.roles.first();
             const channel = message.mentions.channels.first();
-            if (!role || !channel) {
+            const everyone =message.mentions.everyone;
+            if ((!role&&!everyone) || !channel) {
                 message.reply('Please include a channel and/or Role: `' + globalPrefix + 'addslowmode duration(ms) @Role #Channel`');
                 return;
             }
@@ -84,20 +85,20 @@ client.on('message', async message => {
 
             let update = false;
             for (var k in roleList) {
-                if (roleList[k][0] == role.id) {
+                if (roleList[k][0] == (role?role.id:'default')) {
                     roleList[k][1] = parseInt(args[1]);
                     update = true;
                 }
             }
             if (!update) {
-                roleList.push([role.id, args[1]])
+                roleList.push([(role?role.id:'default'), args[1]])
             }
             if (!channelList.includes(channel.id)) {
                 channelList.push(channel.id);
                 keyv.set('channels', channelList);
             }
             await keyv.set(channel.id, roleList);
-            message.reply('Slowmode set for ' + role + ' in ' + channel + '. Duration: ' + args[1]);
+            message.reply('Slowmode set for ' + (role?role.id:'@ everyone') + ' in ' + channel + '. Duration: ' + args[1]);
 
         } else {
             message.reply('Make sure you have administrator permissions to use this command.');
@@ -221,8 +222,9 @@ client.on('message', async message => {
                 if (cooldownList[k][1] < new Date().getTime()) {
                     let roleList = await keyv.get(message.channel.id);
                     let minimumTime = Number.MAX_SAFE_INTEGER;
+
                     for (var i in roleList) {
-                        if (message.member._roles.includes(roleList[i][0])) {
+                        if (message.member._roles.includes(roleList[i][0])||roleList[i][0]==="default") {
                             if (minimumTime > roleList[i][1]) {
                                 minimumTime = roleList[i][1];
 
