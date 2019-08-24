@@ -1,0 +1,6 @@
+{
+  "token": "YourTokenHere",
+  "connectionUrl": "mongodb://@localhost:27017/discord",
+  "prefix": "!"
+
+}
