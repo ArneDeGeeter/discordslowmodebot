@@ -97,7 +97,6 @@ client.on('message', async message => {
                 keyv.set('channels', channelList);
             }
             await keyv.set(channel.id, roleList);
-            console.log(await keyv.get(channel.id));
             message.reply('Slowmode set for ' + role + ' in ' + channel + '. Duration: ' + args[1]);
 
         } else {
@@ -214,7 +213,6 @@ client.on('message', async message => {
                     }
                     cooldownList[k][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
                     await keyv.set(message.member.id, cooldownList);
-                    console.log(parseInt(minimumTime) + parseInt(new Date().getTime()));
                 } else {
                     message.delete();
                     let time = Math.floor((cooldownList[k][1] - new Date().getTime()) / 60000);
