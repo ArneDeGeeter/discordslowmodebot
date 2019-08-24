@@ -40,7 +40,7 @@ client.on('ready', () => {
 
 client.on('message', async message => {
 
-    if (message.content.startsWith(globalPrefix + 'setslowmode')) {
+    if (message.content.startsWith(globalPrefix + 'setSlowMode')) {
         const args = message.content.split(' ');
         if (args.length !== 4) {
             message.reply('Please use proper syntax: `' + globalPrefix + 'addslowmode duration(ms) @Role #Channel`');
@@ -105,7 +105,7 @@ client.on('message', async message => {
         }
         return;
     }
-    if (message.content.startsWith(globalPrefix + 'clearModeratorRole')) {
+    if (message.content.startsWith(globalPrefix + 'removeModeratorRoles')) {
         if (message.member.hasPermission('ADMINISTRATOR')) {
             await keyv.set('moderatorRoles');
             message.reply('All moderatorRoles deleted.')
@@ -172,14 +172,6 @@ client.on('message', async message => {
         return;
     }
 
-
-    if (message.content === globalPrefix + 'ping') {
-        message.channel.send("pong");
-        return;
-    }
-    if (message.content.startsWith("a")) {
-        message.reply(await keyv.get('test'));
-    }
     if (channelList.includes(message.channel.id)) {
         let moderatorRoles;
         if (await keyv.get('moderatorRoles') == null) {
@@ -233,6 +225,5 @@ client.on('message', async message => {
 
 
     }
-})
-;
+});
 
