@@ -204,17 +204,17 @@ client.on('message', async message => {
             cooldownList = await keyv.get(message.member.id);
             if (cooldownList.length !== channelList.length) {
                 for (var k in channelList) {
-                    let contains=false;
-                    for(var i in cooldownList)
-                    if (channelList[k]===cooldownList[i][0]) {
-                        contains=true;
-                    }
-                    if(!contains){
-                        cooldownList.push([channelList[k],0]);
+                    let contains = false;
+                    for (var i in cooldownList)
+                        if (channelList[k] === cooldownList[i][0]) {
+                            contains = true;
+                        }
+                    if (!contains) {
+                        cooldownList.push([channelList[k], 0]);
                     }
                 }
             }
-            await keyv.set(message.member.id,cooldownList);
+            await keyv.set(message.member.id, cooldownList);
         }
         for (var k in cooldownList) {
 
@@ -222,17 +222,19 @@ client.on('message', async message => {
                 if (cooldownList[k][1] < new Date().getTime()) {
                     let roleList = await keyv.get(message.channel.id);
                     let minimumTime = Number.MAX_SAFE_INTEGER;
-
+                    let roleMatch = false;
                     for (var i in roleList) {
                         if (message.member._roles.includes(roleList[i][0])||roleList[i][0]==="default") {
                             if (minimumTime > roleList[i][1]) {
                                 minimumTime = roleList[i][1];
-
+                                roleMatch = true;
                             }
                         }
                     }
-                    cooldownList[k][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
-                    await keyv.set(message.member.id, cooldownList);
+                    if (roleMatch) {
+                        cooldownList[k][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
+                        await keyv.set(message.member.id, cooldownList);
+                    }
                 } else {
                     message.delete();
                     let time = Math.floor((cooldownList[k][1] - new Date().getTime()) / 60000);
