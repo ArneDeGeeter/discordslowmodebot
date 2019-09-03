@@ -52,6 +52,7 @@ client.on('message', async message => {
         }
         //region moderatorcheck
         let moderatorRoles;
+        console.log(keyv)
         if (await keyv.get('moderatorRoles') == null) {
             moderatorRoles = [];
         } else {
@@ -216,29 +217,30 @@ client.on('message', async message => {
             }
             await keyv.set(message.member.id, cooldownList);
         }
-        for (var k in cooldownList) {
+        for (var cooldownListKey in cooldownList) {
 
-            if (cooldownList[k][0] == message.channel.id) {
-                if (cooldownList[k][1] < new Date().getTime()) {
+            if (cooldownList[cooldownListKey][0] == message.channel.id) {
+                if (cooldownList[cooldownListKey][1] < new Date().getTime()) {
                     let roleList = await keyv.get(message.channel.id);
                     let minimumTime = Number.MAX_SAFE_INTEGER;
                     let roleMatch = false;
-                    for (var i in roleList) {
-                        if (message.member._roles.includes(roleList[i][0])||roleList[i][0]==="default") {
-                            if (minimumTime > roleList[i][1]) {
-                                minimumTime = roleList[i][1];
+                    for (var roleListKey in roleList) {
+                        if (message.member._roles.includes(roleList[roleListKey][0])||roleList[roleListKey][0]==="default") {
+                            console.log(roleListKey +" "+cooldownListKey+" "+minimumTime+" "+roleList[roleListKey][1]);
+                            if (minimumTime > roleList[roleListKey][1]) {
+                                minimumTime = roleList[roleListKey][1];
                                 roleMatch = true;
                             }
                         }
                     }
                     if (roleMatch) {
-                        cooldownList[k][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
+                        cooldownList[cooldownListKey][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
                         await keyv.set(message.member.id, cooldownList);
                     }
                 } else {
                     message.delete();
-                    let time = Math.floor((cooldownList[k][1] - new Date().getTime()) / 60000);
-                    message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((cooldownList[k][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
+                    let time = Math.floor((cooldownList[cooldownListKey][1] - new Date().getTime()) / 60000);
+                    message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((cooldownList[cooldownListKey][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
                         msg.delete(60000)
                     });
                 }
