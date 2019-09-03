@@ -69,8 +69,8 @@ client.on('message', async message => {
         if (message.member.hasPermission('ADMINISTRATOR') || hasModeratorRole) {
             const role = message.mentions.roles.first();
             const channel = message.mentions.channels.first();
-            const everyone =message.mentions.everyone;
-            if ((!role&&!everyone) || !channel) {
+            const everyone = message.mentions.everyone;
+            if ((!role && !everyone) || !channel) {
                 message.reply('Please include a channel and/or Role: `' + globalPrefix + 'addslowmode duration(ms) @Role #Channel`');
                 return;
             }
@@ -86,20 +86,20 @@ client.on('message', async message => {
 
             let update = false;
             for (var k in roleList) {
-                if (roleList[k][0] == (role?role.id:'default')) {
+                if (roleList[k][0] == (role ? role.id : 'default')) {
                     roleList[k][1] = parseInt(args[1]);
                     update = true;
                 }
             }
             if (!update) {
-                roleList.push([(role?role.id:'default'), args[1]])
+                roleList.push([(role ? role.id : 'default'), args[1]])
             }
             if (!channelList.includes(channel.id)) {
                 channelList.push(channel.id);
                 keyv.set('channels', channelList);
             }
             await keyv.set(channel.id, roleList);
-            message.reply('Slowmode set for ' + (role?role.id:'@ everyone') + ' in ' + channel + '. Duration: ' + args[1]);
+            message.reply('Slowmode set for ' + (role ? role.id : '@ everyone') + ' in ' + channel + '. Duration: ' + args[1]);
 
         } else {
             message.reply('Make sure you have administrator permissions to use this command.');
@@ -220,14 +220,14 @@ client.on('message', async message => {
         for (var cooldownListKey in cooldownList) {
 
             if (cooldownList[cooldownListKey][0] == message.channel.id) {
-                if (cooldownList[cooldownListKey][1] < new Date().getTime()) {
+                if (Number(cooldownList[cooldownListKey][1]) < Number(new Date().getTime())) {
                     let roleList = await keyv.get(message.channel.id);
                     let minimumTime = Number.MAX_SAFE_INTEGER;
                     let roleMatch = false;
                     for (var roleListKey in roleList) {
-                        if (message.member._roles.includes(roleList[roleListKey][0])||roleList[roleListKey][0]==="default") {
-                            console.log(roleListKey +" "+cooldownListKey+" "+minimumTime+" "+roleList[roleListKey][1]);
-                            if (minimumTime > roleList[roleListKey][1]) {
+                        if (message.member._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
+                            console.log(roleListKey + " " + cooldownListKey + " " + minimumTime + " " + roleList[roleListKey][1]);
+                            if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
                                 minimumTime = roleList[roleListKey][1];
                                 roleMatch = true;
                             }
