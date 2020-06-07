@@ -47,10 +47,36 @@ function getFirstGroup(regexp, str) {
     return Array.from(str.matchAll(regexp), m => m[1]);
 }
 
+async function getChanneldata(channelid) {
+    let channeldata = await keyv.get(channelid);
+    if (channeldata === undefined) {
+        channeldata = {version: 1, roleList: [], requiresInvite: false}
+
+    } else if (channeldata.version === undefined || channeldata.version < 1) {
+        channeldata = {version: 1, roleList: channeldata, requiresInvite: false}
+    }
+
+    return channeldata;
+}
+
+async function getUserdata(userId) {
+    let userdata = await keyv.get(userId);
+    if (userdata === undefined || userdata.version === undefined || userdata.version < 1) {
+        userdata = {version: 1, cooldownList: [], linkedServer: '-1'}
+        let cooldownList;
+        cooldownList = [];
+        for (var k in channelList) {
+            cooldownList.push([channelList[k], 0]);
+        }
+        userdata.cooldownList = cooldownList;
+    }
+    return userdata;
+}
+
 async function getServerOptions(guildId) {
     let serverOptions = await keyv.get(guildId);
     if (serverOptions === undefined) {
-        serverOptions = {owner: -1, allowOthers: true, grantedPeople: [], lastTimePostedInChannels: []};
+        serverOptions = {version: 1, owner: -1, allowOthers: true, grantedPeople: [], lastTimePostedInChannels: []};
 
         let cooldownList;
         cooldownList = [];
@@ -76,6 +102,25 @@ async function getServerOptions(guildId) {
     return serverOptions
 }
 
+async function checkModeratorStatus(member) {
+    //region moderatorcheck
+    let moderatorRoles;
+    if (await keyv.get('moderatorRoles') == null) {
+        moderatorRoles = [];
+    } else {
+
+        moderatorRoles = await keyv.get('moderatorRoles')
+    }
+    let hasModeratorRole = false;
+    for (var k in moderatorRoles) {
+        if (member._roles.includes(moderatorRoles[k])) {
+            hasModeratorRole = true;
+        }
+    }
+    //endregion
+    return hasModeratorRole || member.hasPermission('ADMINISTRATOR');
+}
+
 async function checkCooldown(invite, message) {
 
     let serverOptions = await getServerOptions(invite.guild.id);
@@ -93,7 +138,7 @@ async function checkCooldown(invite, message) {
     }
 
     if (!isAllowedToPost) {
-        message.reply("some response to be changed 2 <@136770866393513984>").then(msg => {
+        message.reply("The owner of the discordserver linked in your post has disabled random people posting without his/her consent. Contact the owner to be added to the list of people being able to post by using `!addperson`, or by disabling this option by using `!togglepermission`").then(msg => {
             msg.delete({timeout: 60000})
         });
         return;
@@ -107,28 +152,34 @@ async function checkCooldown(invite, message) {
         for (var channel in serverOptions.lastTimePostedInChannels) {
             if (serverOptions.lastTimePostedInChannels[channel][0] === message.channel.id) {
 
-                let roleList = await keyv.get(message.channel.id);
+                let roleList = (await keyv.get(message.channel.id)).roleList;
                 let roleMatch = false;
                 for (var roleListKey in roleList) {
-                    if (guild.members.cache.get(idUser)._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
-                        //console.log(roleListKey + " " + cooldownListKey + " " + minimumTime + " " + roleList[roleListKey][1]);
-                        if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
-                            minimumTime = roleList[roleListKey][1];
-                            roleMatch = true;
+                    await guild.members.fetch(idUser).then(member => {
+                            if (member._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
+                                //console.log(roleListKey + " " + cooldownListKey + " " + minimumTime + " " + roleList[roleListKey][1]);
+                                if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
+                                    minimumTime = roleList[roleListKey][1];
+                                    roleMatch = true;
+                                }
+                            }
                         }
-                    }
+                    ).catch(console.error);
+
                 }
 
             }
         }
     }
-    console.log(Number(serverOptions.lastTimePostedInChannels[channel][1]) + parseInt(minimumTime))
-    console.log(parseInt(new Date().getTime()))
     if (Number(serverOptions.lastTimePostedInChannels[channel][1]) + parseInt(minimumTime) > parseInt(new Date().getTime())) {
         message.delete();
-        message.reply("some response to be changed 3 <@136770866393513984>").then(msg => {
-            msg.delete({timeout: 6000})
+        let time = Math.floor((Number(serverOptions.lastTimePostedInChannels[channel][1]) + parseInt(minimumTime) - parseInt(new Date().getTime())) / 60000);
+        message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((Number(serverOptions.lastTimePostedInChannels[channel][1])
+            + parseInt(minimumTime) - parseInt(new Date().getTime())) / 1000) + 1) + ' seconds' : Math.floor(time / 60)
+            + ' hours, ' + time % 60 + ' minutes.') +'\nThis cooldown is shared between everyone advertising that server, if you want to prevent other people from advertising your server, claim ownership of your server using `!claimserver`').then(msg => {
+            msg.delete({timeout: 60000})
         });
+
     } else {
         serverOptions.lastTimePostedInChannels[channel][1] = parseInt(new Date().getTime())
     }
@@ -142,6 +193,7 @@ client.on('guildCreate', async guild => {
 
         let serverOptions = await getServerOptions(guild.id);
         serverOptions.owner = guild.ownerID;
+        serverOptions.grantedPeople.push(guild.ownerID);
         await keyv.set(guild.id, serverOptions)
         if (client.guilds.cache.size > 1) {
             guild.leave();
@@ -161,23 +213,8 @@ client.on('message', async message => {
                 message.reply('Don\'t include negative numbers.')
                 return;
             }
-            //region moderatorcheck
-            let moderatorRoles;
-            console.log(keyv)
-            if (await keyv.get('moderatorRoles') == null) {
-                moderatorRoles = [];
-            } else {
 
-                moderatorRoles = await keyv.get('moderatorRoles')
-            }
-            let hasModeratorRole = false;
-            for (var k in moderatorRoles) {
-                if (message.member._roles.includes(moderatorRoles[k])) {
-                    hasModeratorRole = true;
-                }
-            }
-            //endregion
-            if (message.member.hasPermission('ADMINISTRATOR') || hasModeratorRole) {
+            if (await checkModeratorStatus(message.member)) {
                 const role = message.mentions.roles.first();
                 const channel = message.mentions.channels.first();
                 const everyone = message.mentions.everyone;
@@ -185,31 +222,23 @@ client.on('message', async message => {
                     message.reply('Please include a channel and/or Role: `' + globalPrefix + 'addslowmode duration(ms) @Role #Channel`');
                     return;
                 }
-                //region roleList ini
-                let roleList;
-                if (await keyv.get(channel.id) == null) {
-                    roleList = [];
-                } else {
-
-                    roleList = await keyv.get(channel.id);
-                }
-                //endregion
+                let channeldata = await getChanneldata(channel.id);
 
                 let update = false;
-                for (var k in roleList) {
-                    if (roleList[k][0] == (role ? role.id : 'default')) {
-                        roleList[k][1] = parseInt(args[1]);
+                for (var k in channeldata.roleList) {
+                    if (channeldata.roleList[k][0] == (role ? role.id : 'default')) {
+                        channeldata.roleList[k][1] = parseInt(args[1]);
                         update = true;
                     }
                 }
                 if (!update) {
-                    roleList.push([(role ? role.id : 'default'), args[1]])
+                    channeldata.roleList.push([(role ? role.id : 'default'), args[1]])
                 }
                 if (!channelList.includes(channel.id)) {
                     channelList.push(channel.id);
                     keyv.set('channels', channelList);
                 }
-                await keyv.set(channel.id, roleList);
+                await keyv.set(channel.id, channeldata);
                 message.reply('Slowmode set for ' + (role ? role.id : '@ everyone') + ' in ' + channel + '. Duration: ' + args[1]);
 
             } else {
@@ -294,7 +323,23 @@ client.on('message', async message => {
         }
         if (args[0].toLowerCase() === (globalPrefix + 'claimserver')) {
             message.delete();
-            message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=482971210251108352&permissions=0&scope=bot').then(msg => {
+            message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=433772822133997568&permissions=0&scope=bot').then(msg => {
+                msg.delete({timeout: 60000})
+            });
+            return;
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'unlinkself')) {
+            let userdata = await getUserdata(message.member.id);
+            let linkedserver = userdata.linkedServer;
+            if (userdata.linkedServer !== '-1') {
+                let serverOptions = await getServerOptions(userdata.linkedServer);
+                userdata.linkedServer = -1;
+                serverOptions.grantedPeople.splice(serverOptions.grantedPeople.indexOf(message.member.id), 1);
+                await keyv.set(linkedserver, serverOptions);
+
+            }
+            await keyv.set(message.member.id, userdata);
+            message.reply('Unlinked yourself from the server.').then(msg => {
                 msg.delete({timeout: 60000})
             });
             return;
@@ -310,13 +355,39 @@ client.on('message', async message => {
                 return;
 
             }
-            if (serverOptions.owner === -1) {
-                message.reply('No owner has been set for this server, claim the ownership of the server following the instruction from `!claimserver`')
+            if (serverOptions.owner === -1 && !(await checkModeratorStatus(message.member))) {
+                message.reply('No owner has been set for this server, claim the ownership of the server following the instruction from `!claimserver`').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
 
-            } else if (message.member.id === serverOptions.owner) {
-                message.mentions.users.forEach(user => serverOptions.grantedPeople.indexOf(user.id) === -1 ? serverOptions.grantedPeople.push(user.id) : 'a');
+            } else if (message.member.id === serverOptions.owner || (await checkModeratorStatus(message.member))) {
+                for (const [key, user] of message.mentions.users) {
+                    if (serverOptions.grantedPeople.indexOf(user.id) === -1) {
+                        let userdata = await getUserdata(user.id);
+                        if (userdata.linkedServer !== '-1') {
+                            message.channel.send('\`' + user.username + '\` is already linked to a server.').then(msg => {
+                                msg.delete({timeout: 20000})
+                            });
+                        } else {
+                            userdata.linkedServer = args[1];
+                            serverOptions.grantedPeople.push(user.id);
+                            message.channel.send('\`' + user.username + '\` added.').then(msg => {
+                                msg.delete({timeout: 20000})
+                            });
+                        }
+                        await keyv.set(user.id, userdata);
+                    } else {
+                        message.channel.send('\`' + user.username + '\` is already able to advertise this server.').then(msg => {
+                            msg.delete({timeout: 20000})
+                        });
+                    }
+                }
+
+                // message.mentions.users.forEach(user => serverOptions.grantedPeople.indexOf(user.id) === -1 ? serverOptions.grantedPeople.push(user.id) : 'a');
             } else {
-                message.reply('Only the owner of the server can use that command, if the owner of the server has changed, follow the steps in `!claimserver` to update it.')
+                message.reply('Only the owner of the server can use that command, if the owner of the server has changed, follow the steps in `!claimserver` to update it.').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
             }
 
             await keyv.set(args[1], serverOptions);
@@ -324,22 +395,100 @@ client.on('message', async message => {
             message.delete();
             return;
         }
-        if (args[0].toLowerCase() === (globalPrefix + 'togglePermission')) {
-            //TODO: change to toggle perms
-
+        if (args[0].toLowerCase() === (globalPrefix + 'debug')) {
+            if (checkModeratorStatus(message.member)) {
+                let data = await keyv.get(args[1]);
+                console.log(data);
+                await message.channel.send(JSON.stringify(data));
+            }
+            return;
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'removeperson')) {
+            if (args.length < 3) {
+                message.reply('Please use proper syntax: `' + globalPrefix + 'removePerson <serverId> <@User1> [@User2+...]`');
+                return;
+            }
             let serverOptions = await keyv.get(args[1]);
             if (serverOptions === undefined) {
                 message.reply('Server not found, please make sure you\'ve posted the correct serverId. If the server hasn\'t been advertised before, make sure to claim ownership of the server first, using `!claimserver`.')
                 return;
 
             }
-            if (serverOptions.owner === -1) {
-                message.reply('No owner has been set for this server, claim the ownership of the server following the instruction from `!claimserver`')
+            if (serverOptions.owner === -1 && !(await checkModeratorStatus(message.member))) {
+                message.reply('No owner has been set for this server, claim the ownership of the server following the instruction from `!claimserver`').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+
+            } else if (message.member.id === serverOptions.owner || (await checkModeratorStatus(message.member))) {
+                for (const [key, user] of message.mentions.users) {
+                    if (serverOptions.grantedPeople.indexOf(user.id) !== -1) {
+                        let userdata = await getUserdata(user.id);
+                        if (userdata.linkedServer !== args[1]) {
+                            message.channel.send('\`' + user.username + '\` is linked to a different server.').then(msg => {
+                                msg.delete({timeout: 20000})
+                            });
+                        } else {
+                            userdata.linkedServer = '-1';
+                            serverOptions.grantedPeople.splice(serverOptions.grantedPeople.indexOf(user.id), 1);
+                            message.channel.send('\`' + user.username + '\` removed.').then(msg => {
+                                msg.delete({timeout: 20000})
+                            });
+                        }
+                        await keyv.set(user.id, userdata);
+                    } else {
+                        message.channel.send('\`' + user.username + '\` is not found in the list.').then(msg => {
+                            msg.delete({timeout: 20000})
+                        });
+                    }
+                }
+
+                // message.mentions.users.forEach(user => serverOptions.grantedPeople.indexOf(user.id) === -1 ? serverOptions.grantedPeople.push(user.id) : 'a');
+            } else {
+                message.reply('Only the owner of the server can use that command, if the owner of the server has changed, follow the steps in `!claimserver` to update it.').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+            }
+
+            await keyv.set(args[1], serverOptions);
+
+            message.delete();
+            return;
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'requireinvite')) {
+
+            let channeldata = await getChanneldata(args[1]);
+            channeldata.requiresInvite = !channeldata.requiresInvite;
+            message.reply(channeldata.requiresInvite ? 'This channel now requires invites' : 'This channel no longer requires invites.').then(msg => {
+                msg.delete({timeout: 60000})
+            });
+            await keyv.set(message.channel.id, channeldata)
+            return;
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'togglepermission')) {
+
+            let serverOptions = await keyv.get(args[1]);
+            if (serverOptions === undefined) {
+                message.reply('Server not found, please make sure you\'ve posted the correct serverId. If the server hasn\'t been advertised before, make sure to claim ownership of the server first, using `!claimserver`.').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+                return;
+
+            }
+            if (serverOptions.owner === -1 && !(await checkModeratorStatus(message.member))) {
+                message.reply('No owner has been set for this server, claim the ownership of the server following the instruction from `!claimserver`').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
 
             } else if (message.member.id === serverOptions.owner) {
-                message.mentions.users.forEach(user => serverOptions.grantedPeople.indexOf(user.id) === -1 ? serverOptions.grantedPeople.push(user.id) : 'a');
+                serverOptions.allowOthers = !serverOptions.allowOthers;
+                message.reply(serverOptions.allowOthers ? 'Everyone is now allowed to advertise this server' : 'Only people added can now advertise this server, you can add more people by using `!addPerson`').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+
             } else {
-                message.reply('Only the owner of the server can use that command, if the owner of the server has changed, follow the steps in `!claimserver` to update it.')
+                message.reply('Only the owner of the server can use that command, if the owner of the server has changed, follow the steps in `!claimserver` to update it.').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
             }
 
             await keyv.set(args[1], serverOptions);
@@ -349,8 +498,7 @@ client.on('message', async message => {
         }
 
 
-
-        }
+    }
     // if (!('/'+globalPrefix + 'allowOtherPeople/')i.test) {
     //     message.delete();
     //     message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=482971210251108352&permissions=0&scope=bot').then(msg => {
@@ -360,82 +508,72 @@ client.on('message', async message => {
     // }
     //todo: channels without need toggle between needing server link or default
     if (channelList.includes(message.channel.id)) {
-        let moderatorRoles;
-
-        if (await keyv.get('moderatorRoles') == null) {
-            moderatorRoles = [];
-        } else {
-            moderatorRoles = await keyv.get('moderatorRoles')
+        if (await checkModeratorStatus(message.member)) {
+            return;
         }
-        let hasModeratorRole = false;
-        for (var k in moderatorRoles) {
-            if (message.member._roles.includes(moderatorRoles[k])) {
-                hasModeratorRole = true;
+        if ((await getChanneldata(message.channel.id)).requiresInvite) {
+            var match = getFirstGroup(regexDiscord, message.content);
+            if (match.length != 1) {
+                message.delete();
+                message.reply("Please make sure your post contains one invite link.").then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+                return;
             }
-        }
-        if (message.member.hasPermission('ADMINISTRATOR') || hasModeratorRole) {
+            client.fetchInvite(match[0])
+                .then(invite => checkCooldown(invite, message))
+                .catch(console.error);
             return;
-        }
-        var match = getFirstGroup(regexDiscord, message.content);
-        if (match.length != 1) {
-            message.reply("some response to be changed <@136770866393513984>").then(msg => {
-                msg.delete({timeout: 60000})
-            });
-            return;
-        }
-        client.fetchInvite(match[0])
-            .then(invite => checkCooldown(invite, message))
-            .catch(console.error);
-        return;
+        } else {
 //todo same as above
-        let cooldownList;
-        if (await keyv.get(message.member.id) == null) {
-            cooldownList = [];
-            for (var k in channelList) {
-                cooldownList.push([channelList[k], 0]);
-            }
-        } else {
-            cooldownList = await keyv.get(message.member.id);
-            if (cooldownList.length !== channelList.length) {
-                for (var k in channelList) {
-                    let contains = false;
-                    for (var i in cooldownList)
-                        if (channelList[k] === cooldownList[i][0]) {
-                            contains = true;
-                        }
-                    if (!contains) {
-                        cooldownList.push([channelList[k], 0]);
-                    }
-                }
-            }
-            await keyv.set(message.member.id, cooldownList);
-        }
-        for (var cooldownListKey in cooldownList) {
+            userdata = await getUserdata(message.member.id);
+            // if (await keyv.get(message.member.id) == null) {
+            //     cooldownList = [];
+            //     for (var k in channelList) {
+            //         cooldownList.push([channelList[k], 0]);
+            //     }
+            // } else {
+            //     cooldownList = await keyv.get(message.member.id);
+            //     if (cooldownList.length !== channelList.length) {
+            //         for (var k in channelList) {
+            //             let contains = false;
+            //             for (var i in cooldownList)
+            //                 if (channelList[k] === cooldownList[i][0]) {
+            //                     contains = true;
+            //                 }
+            //             if (!contains) {
+            //                 cooldownList.push([channelList[k], 0]);
+            //             }
+            //         }
+            //     }
+            //     await keyv.set(message.member.id, cooldownList);
+            // }
+            for (var cooldownListKey in userdata.cooldownList) {
 
-            if (cooldownList[cooldownListKey][0] == message.channel.id) {
-                if (Number(cooldownList[cooldownListKey][1]) < Number(new Date().getTime())) {
-                    let roleList = await keyv.get(message.channel.id);
-                    let minimumTime = Number.MAX_SAFE_INTEGER;
-                    let roleMatch = false;
-                    for (var roleListKey in roleList) {
-                        if (message.member._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
-                            console.log(roleListKey + " " + cooldownListKey + " " + minimumTime + " " + roleList[roleListKey][1]);
-                            if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
-                                minimumTime = roleList[roleListKey][1];
-                                roleMatch = true;
+                if (userdata.cooldownList[cooldownListKey][0] == message.channel.id) {
+                    if (Number(userdata.cooldownList[cooldownListKey][1]) < Number(new Date().getTime())) {
+                        let roleList = (await keyv.get(message.channel.id)).roleList;
+                        let minimumTime = Number.MAX_SAFE_INTEGER;
+                        let roleMatch = false;
+                        for (var roleListKey in roleList) {
+                            if (message.member._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
+                                if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
+                                    minimumTime = roleList[roleListKey][1];
+                                    roleMatch = true;
+                                }
                             }
                         }
+                        if (roleMatch) {
+                            userdata.cooldownList[cooldownListKey][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
+                            await keyv.set(message.member.id, userdata);
+                        }
+                    } else {
+                        message.delete();
+                        let time = Math.floor((userdata.cooldownList[cooldownListKey][1] - new Date().getTime()) / 60000);
+                        message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((userdata.cooldownList[cooldownListKey][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
+                            msg.delete({timeout: 60000})
+                        });
                     }
-                    if (roleMatch) {
-                        cooldownList[cooldownListKey][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
-                        await keyv.set(message.member.id, cooldownList);
-                    }
-                } else {
-                    message.delete();
-                    let time = Math.floor((cooldownList[cooldownListKey][1] - new Date().getTime()) / 60000);
-                    message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((cooldownList[cooldownListKey][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.')).then(msg => {
-                        msg.delete(60000)
-                    });
                 }
             }
         }
