@@ -319,7 +319,16 @@ client.on('message', async message => {
             message.channel.send('`!addModeratorRole <@Role> ` Adds a role to the moderator list, this role will bypass the cooldowns, and can edit the cooldowns.\n'
                 + '`!removeModeratorRoles` Removes all moderator role.\n'
                 + '`!setSlowMode <time> <@Role> <#Channel>` Adds the slowmode, time should be in milliseconds.\n'
-                + '`!clearMember <@User` Removes all cooldowns from a person.\n');
+                + '`!clearMember <@User` Removes all cooldowns from a person.\n'
+                + '`!claimServer` Gives the invite link for the bot, this way you can claim ownership of the server you\'re advertising.\n'
+                + '`!unlinkself` This will unlink you from a server if you\'re currently linked to one.\n'
+                + '`!addPerson <serverId> <@User1> [@User2+...]` Adds one or more people to the list of being able to advertise the server, make sure you have disabled other people from advertising the server by using `!togglepermission`.\n'
+                + '`!debug <channelId|UserId|ServerId>` Shows info, need moderator role to use.\n'
+                + '`!removeperson <serverId> <@User1> [@User2+...]` Removes one or more people from the list of being able to advertise the server, make sure you have disabled other people from advertising the server by using `!togglepermission`.\n'
+                + '`!requireinvite <#Channel>` Toggles it so the channel requires (or doesn\'t require one anymore) a discord invite in order to not be deleted.\n'
+                + '`!togglepermission <serverId>` Toggles if only added people are able to advertise the server or not.\n'
+                + 'Info on obtaining id\'s can be found using this link: <https://support.discordapp.com/hc/en-us/articles/360000291932-How-to-Properly-Report-Issues-to-Trust-Safety>'
+            );
         }
         if (args[0].toLowerCase() === (globalPrefix + 'claimserver')) {
             message.delete();
