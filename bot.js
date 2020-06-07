@@ -327,7 +327,7 @@ client.on('message', async message => {
                 + '`!removeperson <serverId> <@User1> [@User2+...]` Removes one or more people from the list of being able to advertise the server, make sure you have disabled other people from advertising the server by using `!togglepermission`.\n'
                 + '`!requireinvite <#Channel>` Toggles it so the channel requires (or doesn\'t require one anymore) a discord invite in order to not be deleted.\n'
                 + '`!togglepermission <serverId>` Toggles if only added people are able to advertise the server or not.\n'
-                + 'Info on obtaining id\'s can be found using this link: <https://support.discordapp.com/hc/en-us/articles/360000291932-How-to-Properly-Report-Issues-to-Trust-Safety>'
+                + 'Info on obtaining id\'s can be found using this link: <https://support.discordapp.com/hc/en-us/articles/360000291932-How-to-Properly-Report-Issues-to-Trust-Safety   >'
             );
         }
         if (args[0].toLowerCase() === (globalPrefix + 'claimserver')) {
@@ -470,7 +470,7 @@ client.on('message', async message => {
             message.reply(channeldata.requiresInvite ? 'This channel now requires invites' : 'This channel no longer requires invites.').then(msg => {
                 msg.delete({timeout: 60000})
             });
-            await keyv.set(message.channel.id, channeldata)
+            await keyv.set(args[1], channeldata)
             return;
         }
         if (args[0].toLowerCase() === (globalPrefix + 'togglepermission')) {
