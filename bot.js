@@ -70,6 +70,17 @@ async function getUserdata(userId) {
         }
         userdata.cooldownList = cooldownList;
     }
+    if (userdata.version < 2) {
+        userdata = {version: 1, cooldownList: [], linkedServer: '-1',lastAdvertisedServer:'-1'}
+        let cooldownList;
+        cooldownList = [];
+        for (var k in channelList) {
+            cooldownList.push([channelList[k], 0]);
+        }
+        userdata.cooldownList = cooldownList;
+
+    }
+
     return userdata;
 }
 
@@ -145,7 +156,7 @@ message.delete();
         return;
     }
     let list = serverOptions.grantedPeople.concat(message.member.id)
-    var guild = client.guilds.resolve(message.member);
+    let guild = client.guilds.resolve(message.member);
     let minimumTime = Number.MAX_SAFE_INTEGER;
     let index=-1;
     for (let x in list) {
@@ -178,7 +189,7 @@ console.log(index)
         let time = Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) - parseInt(new Date().getTime())) / 60000);
         message.reply('The next time you can post is in ' + ((time == 0) ? (Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1])
             + parseInt(minimumTime) - parseInt(new Date().getTime())) / 1000) + 1) + ' seconds' : Math.floor(time / 60)
-            + ' hours, ' + time % 60 + ' minutes.') +'\nThis cooldown is shared between everyone advertising that server, if you want to prevent other people from advertising your server, claim ownership of your server using `!claimserver`').then(msg => {
+            + ' hours, ' + time % 60 + ' minutes.') + '\nThis cooldown is shared between everyone advertising that server, if you want to prevent other people from advertising your server, claim ownership of your server using `!claimserver`').then(msg => {
             msg.delete({timeout: 60000})
         });
 
@@ -556,7 +567,7 @@ client.on('message', async message => {
             return;
         }
         if ((await getChanneldata(message.channel.id)).requiresInvite) {
-            var match = await getFirstGroup(regexDiscord, message.content);
+            var match = getFirstGroup(regexDiscord, message.content);
             if (match.length != 1) {
                 message.delete();
                 message.reply("Please make sure your post contains one invite link.").then(msg => {
