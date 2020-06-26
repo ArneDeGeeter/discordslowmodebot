@@ -2,6 +2,8 @@ const {Client} = require('discord.js');
 // const { Client } = require('discord.js');
 // const client = new Client({ ws: { intents: ['GUILDS', 'GUILD_MESSAGES'] } });
 const Keyv = require('keyv');
+const Discord = require('discord.js');
+
 const config = require('./params.json');
 const fs = require('fs')
 const regexDiscord = "(?:https?:\\/\\/)?(?:www\\.)?discord(?:\\.gg|(?:app)?\\.com\\/invite)\\/(\\S+)"
@@ -71,11 +73,25 @@ async function getUserdata(userId) {
         userdata.cooldownList = cooldownList;
     }
     if (userdata.version < 2) {
-        userdata = {version: 1, cooldownList: [], linkedServer: '-1',lastAdvertisedServer:'-1'}
-        let cooldownList;
-        cooldownList = [];
+        userdata = {
+            version: 2,
+            cooldownList: userdata.cooldownList,
+            linkedServer: userdata.linkedServer,
+            lastAdvertisedServer: '-1'
+        }
+        let cooldownList = userdata.cooldownList;
         for (var k in channelList) {
-            cooldownList.push([channelList[k], 0]);
+            let contains = false;
+            for (var j in cooldownList) {
+                if (cooldownList[j][0] === channelList[k]) {
+                    contains = true;
+                }
+
+            }
+            if (!contains) {
+                cooldownList.push([channelList[k], 0]);
+
+            }
         }
         userdata.cooldownList = cooldownList;
 
@@ -86,7 +102,7 @@ async function getUserdata(userId) {
 
 async function getServerOptions(guildId) {
     let serverOptions = await keyv.get(guildId);
-    if (serverOptions === undefined) {
+    if (serverOptions === undefined || serverOptions.version === undefined || serverOptions.version < 1) {
         serverOptions = {version: 1, owner: -1, allowOthers: true, grantedPeople: [], lastTimePostedInChannels: []};
 
         let cooldownList;
@@ -96,6 +112,10 @@ async function getServerOptions(guildId) {
         }
         serverOptions.lastTimePostedInChannels = cooldownList;
 
+
+    }
+    if (serverOptions.version<2){
+        serverOptions = {version: 2, owner: serverOptions.owner, allowOthers: serverOptions.allowOthers, grantedPeople: serverOptions.grantedPeople, lastTimePostedInChannels: serverOptions.lastTimePostedInChannels,serverName:"No server name"};
 
     }
     if (serverOptions.lastTimePostedInChannels.length !== channelList.length) {
@@ -110,7 +130,7 @@ async function getServerOptions(guildId) {
             }
         }
     }
-    return serverOptions
+    return serverOptions;
 }
 
 async function checkModeratorStatus(member) {
@@ -135,6 +155,7 @@ async function checkModeratorStatus(member) {
 async function checkCooldown(invite, message) {
 
     let serverOptions = await getServerOptions(invite.guild.id);
+    serverOptions.serverName=invite.guild.name;
     let isAllowedToPost = false;
     if (serverOptions.allowOthers) {
         isAllowedToPost = true;
@@ -149,7 +170,7 @@ async function checkCooldown(invite, message) {
     }
 
     if (!isAllowedToPost) {
-message.delete();
+        message.delete();
         message.reply("The owner of the discordserver linked in your post has disabled random people posting without his/her consent. Contact the owner to be added to the list of people being able to post by using `!addperson`, or by disabling this option by using `!togglepermission`").then(msg => {
             msg.delete({timeout: 60000})
         });
@@ -158,12 +179,12 @@ message.delete();
     let list = serverOptions.grantedPeople.concat(message.member.id)
     let guild = client.guilds.resolve(message.member);
     let minimumTime = Number.MAX_SAFE_INTEGER;
-    let index=-1;
+    let index = -1;
     for (let x in list) {
         let idUser = list[x]
         for (var channel in serverOptions.lastTimePostedInChannels) {
             if (serverOptions.lastTimePostedInChannels[channel][0] === message.channel.id) {
- 		index=channel;
+                index = channel;
                 let roleList = (await keyv.get(message.channel.id)).roleList;
                 let roleMatch = false;
                 for (var roleListKey in roleList) {
@@ -183,7 +204,6 @@ message.delete();
             }
         }
     }
-console.log(index)
     if (Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) > parseInt(new Date().getTime())) {
         message.delete();
         let time = Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) - parseInt(new Date().getTime())) / 60000);
@@ -195,6 +215,9 @@ console.log(index)
 
     } else {
         serverOptions.lastTimePostedInChannels[index][1] = parseInt(new Date().getTime())
+        let userdata = await getUserdata(message.member.id);
+        userdata.lastAdvertisedServer=invite.guild.id;
+        await keyv.set(message.member.id,userdata);
     }
 
 
@@ -205,17 +228,18 @@ console.log(index)
 client.on('guildCreate', async guild => {
 
         let serverOptions = await getServerOptions(guild.id);
-	let ownerdata = await getUserdata(guild.ownerID);
-	ownerdata.linkedServer = guild.id.toString()
+        let ownerdata = await getUserdata(guild.ownerID);
+        ownerdata.linkedServer = guild.id.toString()
         serverOptions.owner = guild.ownerID;
         serverOptions.grantedPeople.push(guild.ownerID);
         await keyv.set(guild.id, serverOptions);
-await keyv.set(guild.ownerID, ownerdata);
+        await keyv.set(guild.ownerID, ownerdata);
         if (client.guilds.cache.size > 1) {
             guild.leave();
         }
     }
 )
+
 function sendmessageWithPings(message, basemessage) {
     let bonusmessage = '';
     if (message.mentions.users.size !== 0 && message.mentions.users.size <= 3) {
@@ -323,7 +347,7 @@ client.on('message', async message => {
                 moderatorRoles = [];
             } else {
 
-                moderatorRoles = await keyv.get('moderatorRoles')
+                moderatorRoles = await keyv.get('moderatorRoles');
             }
             let hasModeratorRole = false;
             for (var k in moderatorRoles) {
@@ -380,6 +404,97 @@ client.on('message', async message => {
         if (args[0].toLowerCase() === (globalPrefix + 'connect')) {
             let basemessage = 'To connect to a server on epic using an IP:port, go into single player, open the console, and type `open ip:port`';
             sendmessageWithPings(message, basemessage);
+
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'cooldown')) {
+            let user = message.member.user;
+
+            if (await checkModeratorStatus(message.member) && message.mentions.users.size !== 0) {
+
+                user = message.mentions.users.first();
+
+            }
+            let userdata = await getUserdata(user.id);
+            let serverOptions;
+            if (userdata.lastAdvertisedServer !== "-1") {
+                serverOptions = await getServerOptions(userdata.lastAdvertisedServer)
+            }
+            //region channelmessages
+            let channelmessage = "";
+            for (var cooldownListKey in userdata.cooldownList) {
+
+                if (Number(userdata.cooldownList[cooldownListKey][1]) >= Number(new Date().getTime())) {
+
+                    let time = Math.floor((userdata.cooldownList[cooldownListKey][1] - new Date().getTime()) / 60000);
+                    channelmessage = channelmessage + "<#" + userdata.cooldownList[cooldownListKey][0] + ">:  " + ((time == 0) ? (Math.floor((userdata.cooldownList[cooldownListKey][1] - new Date().getTime()) / 1000) + 1) + ' seconds' : Math.floor(time / 60) + ' hours, ' + time % 60 + ' minutes.') + "\n";
+                }
+            }
+            if (channelmessage === "") {
+                channelmessage = "No more channel cooldowns."
+            }
+            //endregion
+            let servermessages = ""
+            if (serverOptions === undefined) {
+                servermessages = "No server found, make sure you're atleast advertised that server once."
+            } else {
+                for (var channelListInt in channelList) {
+
+                    let list = serverOptions.grantedPeople.concat(message.member.id)
+                    let guild = client.guilds.resolve(message.member);
+                    let minimumTime = Number.MAX_SAFE_INTEGER;
+                    let index = -1;
+                    for (let x in list) {
+                        let idUser = list[x]
+                        for (var channel in serverOptions.lastTimePostedInChannels) {
+                            if (serverOptions.lastTimePostedInChannels[channel][0] === channelList[channelListInt]) {
+                                index = channel;
+                                let roleList = (await keyv.get(message.channel.id)).roleList;
+                                let roleMatch = false;
+                                for (var roleListKey in roleList) {
+                                    await guild.members.fetch(idUser).then(member => {
+                                            if (member._roles.includes(roleList[roleListKey][0]) || roleList[roleListKey][0] === "default") {
+                                                //console.log(roleListKey + " " + cooldownListKey + " " + minimumTime + " " + roleList[roleListKey][1]);
+                                                if (Number(minimumTime) > Number(roleList[roleListKey][1])) {
+                                                    minimumTime = roleList[roleListKey][1];
+                                                    roleMatch = true;
+                                                }
+                                            }
+                                        }
+                                    ).catch(console.error);
+
+                                }
+
+                            }
+                        }
+                    }
+                    if (Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) > parseInt(new Date().getTime())) {
+
+                        let time = Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) - parseInt(new Date().getTime())) / 60000);
+                        servermessages=servermessages+"<#"+channelList[channelListInt]+">: "+((time == 0) ? (Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1])
+                            + parseInt(minimumTime) - parseInt(new Date().getTime())) / 1000) + 1) + ' seconds' : Math.floor(time / 60)
+                            + ' hours, ' + time % 60 + ' minutes.')
+
+                    }
+                }
+            }
+
+
+            if (servermessages === "") {
+                servermessages = "No more server cooldowns."
+            }
+            const exampleEmbed = new Discord.MessageEmbed()
+                .setColor('#008ae6')
+                .setTitle('Cooldowns')
+                .setAuthor(user.username, user.displayAvatarURL())
+                .addFields(
+                    {name: "Channels cooldowns", value: channelmessage},
+                    {name: "Server cooldowns for `"+serverOptions.serverName+"`", value: servermessages}
+                )
+                .setTimestamp()
+
+            message.channel.send(exampleEmbed).then(msg => {
+                msg.delete({timeout: 120000})
+            });
 
         }
 
@@ -453,7 +568,6 @@ client.on('message', async message => {
         if (args[0].toLowerCase() === (globalPrefix + 'debug')) {
             if (checkModeratorStatus(message.member)) {
                 let data = await keyv.get(args[1]);
-                console.log(data);
                 await message.channel.send(JSON.stringify(data));
             }
             return;
@@ -510,13 +624,14 @@ client.on('message', async message => {
             return;
         }
         if (args[0].toLowerCase() === (globalPrefix + 'requireinvite')) {
-
-            let channeldata = await getChanneldata(args[1]);
-            channeldata.requiresInvite = !channeldata.requiresInvite;
-            message.reply(channeldata.requiresInvite ? 'This channel now requires invites' : 'This channel no longer requires invites.').then(msg => {
-                msg.delete({timeout: 60000})
-            });
-            await keyv.set(args[1], channeldata)
+            if (await checkModeratorStatus(message.member)) {
+                let channeldata = await getChanneldata(args[1]);
+                channeldata.requiresInvite = !channeldata.requiresInvite;
+                message.reply(channeldata.requiresInvite ? 'This channel now requires invites' : 'This channel no longer requires invites.').then(msg => {
+                    msg.delete({timeout: 60000})
+                });
+                await keyv.set(args[1], channeldata)
+            }
             return;
         }
         if (args[0].toLowerCase() === (globalPrefix + 'togglepermission')) {
@@ -534,7 +649,7 @@ client.on('message', async message => {
                     msg.delete({timeout: 60000})
                 });
 
-            } else if (message.member.id === serverOptions.owner||(await checkModeratorStatus(message.member))) {
+            } else if (message.member.id === serverOptions.owner || (await checkModeratorStatus(message.member))) {
                 serverOptions.allowOthers = !serverOptions.allowOthers;
                 message.reply(serverOptions.allowOthers ? 'Everyone is now allowed to advertise this server' : 'Only people added can now advertise this server, you can add more people by using `!addPerson`').then(msg => {
                     msg.delete({timeout: 60000})
@@ -554,21 +669,21 @@ client.on('message', async message => {
 
 
     }
-    // if (!('/'+globalPrefix + 'allowOtherPeople/')i.test) {
-    //     message.delete();
-    //     message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=482971210251108352&permissions=0&scope=bot').then(msg => {
-    //         msg.delete({timeout: 60000})
-    //     });
-    //     return;
-    // }
-    //todo: channels without need toggle between needing server link or default
+// if (!('/'+globalPrefix + 'allowOtherPeople/')i.test) {
+//     message.delete();
+//     message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=482971210251108352&permissions=0&scope=bot').then(msg => {
+//         msg.delete({timeout: 60000})
+//     });
+//     return;
+// }
+//todo: channels without need toggle between needing server link or default
     if (channelList.includes(message.channel.id)) {
         if (await checkModeratorStatus(message.member)) {
             return;
         }
         if ((await getChanneldata(message.channel.id)).requiresInvite) {
-            var match = getFirstGroup(regexDiscord, message.content);
-            if (match.length != 1) {
+            var match = await getFirstGroup(regexDiscord, message.content);
+            if (match.length !== 1) {
                 message.delete();
                 message.reply("Please make sure your post contains one invite link.").then(msg => {
                     msg.delete({timeout: 60000})
@@ -587,7 +702,7 @@ client.on('message', async message => {
             return;
         } else {
 //todo same as above
-            userdata = await getUserdata(message.member.id);
+            userdata = await getUserdata(message.member.user.id);
 
             //     cooldownList = [];
             //     for (var k in channelList) {
@@ -624,7 +739,7 @@ client.on('message', async message => {
                                 }
                             }
                         }
-                       if (roleMatch) {
+                        if (roleMatch) {
                             userdata.cooldownList[cooldownListKey][1] = parseInt(minimumTime) + parseInt(new Date().getTime());
                             await keyv.set(message.member.id, userdata);
                         }
@@ -641,5 +756,6 @@ client.on('message', async message => {
 
 
     }
-});
+})
+;
 
