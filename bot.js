@@ -472,7 +472,7 @@ client.on('message', async message => {
                         let time = Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1]) + parseInt(minimumTime) - parseInt(new Date().getTime())) / 60000);
                         servermessages=servermessages+"<#"+channelList[channelListInt]+">: "+((time == 0) ? (Math.floor((Number(serverOptions.lastTimePostedInChannels[index][1])
                             + parseInt(minimumTime) - parseInt(new Date().getTime())) / 1000) + 1) + ' seconds' : Math.floor(time / 60)
-                            + ' hours, ' + time % 60 + ' minutes.')
+                            + ' hours, ' + time % 60 + ' minutes.')+"\n"
 
                     }
                 }
