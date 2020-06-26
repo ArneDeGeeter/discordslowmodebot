@@ -488,7 +488,7 @@ client.on('message', async message => {
                 .setAuthor(user.username, user.displayAvatarURL())
                 .addFields(
                     {name: "Channels cooldowns", value: channelmessage},
-                    {name: "Server cooldowns for `"+serverOptions.serverName+"`", value: servermessages}
+                    {name: "Server cooldowns "+(serverOptions===undefined?"":"for `"+serverOptions.serverName+"`"), value: servermessages}
                 )
                 .setTimestamp()
 
@@ -664,6 +664,13 @@ client.on('message', async message => {
             await keyv.set(args[1], serverOptions);
 
             message.delete();
+            return;
+        }
+        if (args[0].toLowerCase() === (globalPrefix + 'claimserver')) {
+            message.delete();
+            message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=433772822133997568&permissions=0&scope=bot').then(msg => {
+                msg.delete({timeout: 60000})
+            });
             return;
         }
 
