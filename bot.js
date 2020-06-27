@@ -6,7 +6,7 @@ const Discord = require('discord.js');
 
 const config = require('./params.json');
 const fs = require('fs')
-const regexDiscord = "(?:https?:\\/\\/)?(?:www\\.)?discord(?:\\.gg|(?:app)?\\.com\\/invite)\\/(\\S+)"
+const regexDiscord = "?discord(?:\\.gg|(?:app)?\\.com\\/invite)\\/(\\S+)"
 let globalPrefix = '!';
 let connectionURL = "";
 let token = "";
@@ -668,7 +668,7 @@ client.on('message', async message => {
         }
         if (args[0].toLowerCase() === (globalPrefix + 'claimserver')) {
             message.delete();
-            message.channel.send('Add the bot to your server by inviting it trough this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=433772822133997568&permissions=0&scope=bot').then(msg => {
+            message.channel.send('Add the bot to your server by inviting it through this link, it will just check the server owner, then leave again.\n https://discord.com/api/oauth2/authorize?client_id=433772822133997568&permissions=0&scope=bot').then(msg => {
                 msg.delete({timeout: 60000})
             });
             return;
