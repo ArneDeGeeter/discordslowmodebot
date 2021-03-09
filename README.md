@@ -1,7 +1,7 @@
-#Slow mode bot
+# Slow mode bot
 This is a small bot that allows you to setup slowmodes longer than the discord cooldown allows. The cooldowns can be rolebased aswell.
 
-##Setup
+## Setup
 1. Install Node.js 6.0.0 or newer
 2. Dependencies:
    - discord.js: `npm install discord.js`
@@ -18,7 +18,7 @@ This is a small bot that allows you to setup slowmodes longer than the discord c
 4. Run the bot `node bot.js`
 5. Set up all cooldowns/administrators
 
-##Commands
+## Commands
 You can set your own prefix in [the config](./params.json) aswell.
 
 `!addModeratorRole <@Role> ` Adds a role to the moderator list, this role will bypass the cooldowns, and can edit the cooldowns.
